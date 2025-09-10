@@ -1,0 +1,6 @@
+scripts/
+*.py
+__pycache__/
+*.pyc
+.env.local
+README.md
