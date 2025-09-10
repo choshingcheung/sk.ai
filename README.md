@@ -204,10 +204,28 @@ Detailed training notebooks and validation results available in `/yolo_v1/combin
 - **Root Cause**: Model export optimization incompatible with onnxruntime-web
 - **Solution**: 
   - Re-exported ONNX model with `optimize=False` and `simplify=False`
-  - Updated to ONNX opset 12 for better browser compatibility
-  - Improved ONNX Runtime configuration with proper buffer loading
+  - Updated to ONNX opset 11 for maximum browser compatibility
+  - Implemented multiple loading strategies with graceful degradation
   - Added comprehensive error handling with detailed logging
 - **Status**: ✅ **FIXED** - Model now loads successfully in browser
+
+### Detection Coordinate Issues **RESOLVED**
+- **Issue**: Bounding boxes not displaying despite successful detection
+- **Root Cause**: Incorrect coordinate scaling in post-processing (coordinates scaled by 640x unnecessarily)
+- **Solution**:
+  - Fixed YOLOv11 transposed output format interpretation
+  - Corrected coordinate scaling from YOLO (640x640) to canvas display
+  - Added comprehensive debugging logs for coordinate transformations
+- **Status**: ✅ **FIXED** - Bounding boxes now display correctly on vertebrae
+
+### Model Output Format **CORRECTED**
+- **Issue**: Astronomical confidence scores (66622%) and wrong detection positioning
+- **Root Cause**: Misinterpretation of YOLOv11's transposed output tensor format
+- **Solution**:
+  - Updated post-processing to handle transposed format: `[all_x, all_y, all_w, all_h, all_classes...]`
+  - Fixed confidence score calculation and class assignment
+  - Implemented proper Non-Maximum Suppression with realistic thresholds
+- **Status**: ✅ **FIXED** - Realistic confidence scores and accurate detections
 
 ### Model Loading Robustness **ENHANCED**
 - **Feature**: Added fallback demo detection system
