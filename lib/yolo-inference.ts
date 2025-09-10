@@ -216,45 +216,60 @@ class YOLOInference {
 
   private postprocess(output: Float32Array, outputShape: number[]): Detection[] {
     const detections: Detection[] = [];
-    const [, totalOutputs, numDetections] = outputShape;
     
-    // YOLOv11 output format: [x, y, w, h, conf_class1, conf_class2, ...]
-    // where totalOutputs = 4 (bbox) + num_classes (5) = 9
+    console.log('Output shape:', outputShape);
+    console.log('Output sample (first 20 values):', Array.from(output.slice(0, 20)));
+    
+    // YOLOv11 output format: [batch, 4+classes, detections] = [1, 9, 8400]
+    // Transposed format: [x_center, y_center, width, height, class0_conf, class1_conf, ...]
+    const [batch, channels, numDetections] = outputShape;
+    const numClasses = channels - 4; // 9 - 4 = 5 classes
+    
+    console.log(`Processing ${numDetections} detections with ${numClasses} classes`);
     
     // Process each detection
     for (let i = 0; i < numDetections; i++) {
-      const startIdx = i * totalOutputs;
+      // YOLOv11 uses transposed output: data is organized as [all_x, all_y, all_w, all_h, all_class0, all_class1, ...]
+      const x_center = output[i]; // First numDetections values are x coordinates
+      const y_center = output[numDetections + i]; // Next numDetections values are y coordinates  
+      const width = output[2 * numDetections + i]; // Width values
+      const height = output[3 * numDetections + i]; // Height values
       
-      // Extract box coordinates (already in center format, normalized to input size)
-      const centerX = output[startIdx] * this.INPUT_SIZE;
-      const centerY = output[startIdx + 1] * this.INPUT_SIZE;
-      const width = output[startIdx + 2] * this.INPUT_SIZE;
-      const height = output[startIdx + 3] * this.INPUT_SIZE;
-      
-      // Find the class with highest confidence (starting from index 4)
+      // Find the class with highest confidence
       let maxConfidence = 0;
       let classIndex = 0;
       
-      for (let j = 4; j < totalOutputs; j++) {
-        const classConf = output[startIdx + j];
+      for (let c = 0; c < numClasses; c++) {
+        const classConf = output[(4 + c) * numDetections + i];
         if (classConf > maxConfidence) {
           maxConfidence = classConf;
-          classIndex = j - 4;
+          classIndex = c;
         }
       }
       
       // Skip detections below confidence threshold
       if (maxConfidence < this.CONFIDENCE_THRESHOLD) continue;
       
-      // Convert from center coordinates to top-left coordinates
-      const x = centerX - width / 2;
-      const y = centerY - height / 2;
+      // YOLO coordinates are already in pixel coordinates relative to 640x640 input
+      // No need to multiply by INPUT_SIZE again
+      const centerX = x_center;
+      const centerY = y_center;  
+      const w = width;
+      const h = height;
       
-      detections.push({
-        bbox: [Math.max(0, x), Math.max(0, y), width, height],
+      // Convert from center coordinates to top-left coordinates
+      const x = centerX - w / 2;
+      const y = centerY - h / 2;
+      
+      const detection = {
+        bbox: [Math.max(0, x), Math.max(0, y), w, h] as [number, number, number, number],
         confidence: maxConfidence,
         class: this.CLASS_NAMES[classIndex as keyof typeof this.CLASS_NAMES] || `Class_${classIndex}`
-      });
+      };
+      
+      console.log(`Detection ${detections.length}: raw=[${x_center.toFixed(3)}, ${y_center.toFixed(3)}, ${width.toFixed(3)}, ${height.toFixed(3)}] pixel=[${centerX.toFixed(1)}, ${centerY.toFixed(1)}, ${w.toFixed(1)}, ${h.toFixed(1)}] bbox=[${detection.bbox[0].toFixed(1)}, ${detection.bbox[1].toFixed(1)}, ${detection.bbox[2].toFixed(1)}, ${detection.bbox[3].toFixed(1)}] conf=${(maxConfidence*100).toFixed(1)}% class=${detection.class}`);
+      
+      detections.push(detection);
     }
     
     console.log(`Found ${detections.length} detections before NMS`);

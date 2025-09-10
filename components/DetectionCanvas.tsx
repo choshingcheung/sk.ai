@@ -85,20 +85,40 @@ export default function DetectionCanvas({ imageUrl, detections, isLoading }: Det
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
 
-      // Calculate scaling factors
-      const scaleX = canvas.width / imageDimensions.width;
-      const scaleY = canvas.height / imageDimensions.height;
+      // YOLO model processes images at 640x640, so we need to scale from that
+      // First scale from YOLO's 640x640 coordinate system to original image dimensions
+      const yoloToImageScaleX = imageDimensions.width / 640;
+      const yoloToImageScaleY = imageDimensions.height / 640;
+      
+      // Then scale from original image to canvas display size
+      const imageToCanvasScaleX = canvas.width / imageDimensions.width;
+      const imageToCanvasScaleY = canvas.height / imageDimensions.height;
+
+      console.log('Scaling debug:', {
+        canvasSize: [canvas.width, canvas.height],
+        imageSize: [imageDimensions.width, imageDimensions.height],
+        yoloToImageScale: [yoloToImageScaleX, yoloToImageScaleY],
+        imageToCanvasScale: [imageToCanvasScaleX, imageToCanvasScaleY],
+        detectionsCount: detections.length
+      });
 
       // Draw detections
-      detections.forEach((detection) => {
+      detections.forEach((detection, idx) => {
         const [x, y, width, height] = detection.bbox;
         const color = COLORS[detection.class as keyof typeof COLORS] || '#ff6b6b';
 
-        // Scale bbox coordinates to canvas size
-        const scaledX = x * scaleX;
-        const scaledY = y * scaleY;
-        const scaledWidth = width * scaleX;
-        const scaledHeight = height * scaleY;
+        // Scale coordinates: YOLO (640x640) -> Original Image -> Canvas
+        const imageX = x * yoloToImageScaleX;
+        const imageY = y * yoloToImageScaleY;
+        const imageWidth = width * yoloToImageScaleX;
+        const imageHeight = height * yoloToImageScaleY;
+        
+        const scaledX = imageX * imageToCanvasScaleX;
+        const scaledY = imageY * imageToCanvasScaleY;
+        const scaledWidth = imageWidth * imageToCanvasScaleX;
+        const scaledHeight = imageHeight * imageToCanvasScaleY;
+
+        console.log(`Canvas Detection ${idx}: bbox=[${x.toFixed(1)}, ${y.toFixed(1)}, ${width.toFixed(1)}, ${height.toFixed(1)}] scaled=[${scaledX.toFixed(1)}, ${scaledY.toFixed(1)}, ${scaledWidth.toFixed(1)}, ${scaledHeight.toFixed(1)}] class=${detection.class} conf=${(detection.confidence*100).toFixed(1)}%`);
 
         // Draw bounding box
         ctx.strokeStyle = color;
