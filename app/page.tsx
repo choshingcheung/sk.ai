@@ -35,17 +35,36 @@ export default function Home() {
   };
 
   const handleDetect = async () => {
-    if (!selectedImage || !modelLoaded) return;
+    if (!selectedImage) return;
     
     setIsLoading(true);
     setError(null);
     
     try {
-      const results = await yoloInference.predict(selectedImage);
-      setDetections(results);
+      if (modelLoaded) {
+        // Try real YOLO detection first
+        const results = await yoloInference.predict(selectedImage);
+        setDetections(results);
+      } else {
+        // Fallback to mock detection for testing
+        console.log('Model not loaded, using mock detection for testing');
+        await new Promise(resolve => setTimeout(resolve, 2000)); // Simulate processing time
+        
+        // Generate mock detections for demonstration
+        const mockDetections = [
+          { bbox: [150, 120, 80, 60] as [number, number, number, number], confidence: 0.94, class: 'L1' },
+          { bbox: [145, 200, 85, 65] as [number, number, number, number], confidence: 0.89, class: 'L2' },
+          { bbox: [140, 280, 90, 70] as [number, number, number, number], confidence: 0.91, class: 'L3' },
+          { bbox: [135, 360, 95, 75] as [number, number, number, number], confidence: 0.87, class: 'L4' },
+          { bbox: [130, 440, 100, 80] as [number, number, number, number], confidence: 0.93, class: 'L5' }
+        ];
+        
+        setDetections(mockDetections);
+        setError('Note: Using mock detection data. ONNX model failed to load.');
+      }
     } catch (err) {
-      setError('Failed to run detection. Please try again with a different image.');
       console.error('Detection error:', err);
+      setError(`Failed to run detection: ${err instanceof Error ? err.message : 'Unknown error'}`);
     } finally {
       setIsLoading(false);
     }
@@ -61,8 +80,8 @@ export default function Home() {
               <Activity className="h-6 w-6 text-white" />
             </div>
             <div>
-              <h1 className="text-2xl font-bold text-gray-900">YOLO Spine Detection</h1>
-              <p className="text-sm text-gray-500">L1-L5 Vertebrae Detection Platform</p>
+              <h1 className="text-2xl font-bold text-gray-900">SK.AI</h1>
+              <p className="text-sm text-gray-500">AI-Powered Spine Detection Platform</p>
             </div>
           </div>
         </div>
@@ -97,11 +116,17 @@ export default function Home() {
                 
                 <button
                   onClick={handleDetect}
-                  disabled={isLoading || !modelLoaded}
+                  disabled={isLoading}
                   className="w-full bg-blue-600 text-white font-medium py-3 px-6 rounded-lg hover:bg-blue-700 disabled:bg-blue-300 disabled:cursor-not-allowed transition-colors"
                 >
-                  {isLoading ? 'Detecting Vertebrae...' : modelLoaded ? 'Run Detection' : 'Loading Model...'}
+                  {isLoading ? 'Detecting Vertebrae...' : modelLoaded ? 'Run AI Detection' : 'Run Demo Detection'}
                 </button>
+                
+                {!modelLoaded && (
+                  <p className="mt-2 text-xs text-gray-600">
+                    Demo mode: AI model not loaded, using sample detection data
+                  </p>
+                )}
               </div>
             )}
           </div>

@@ -39,16 +39,18 @@ def convert_model():
         print("Loading YOLO model...")
         model = YOLO(str(model_path))
         
-        # Export to ONNX
+        # Export to ONNX with maximum compatibility
         print("Exporting model to ONNX format...")
         onnx_path = model.export(
             format="onnx",
             imgsz=640,  # Input image size
-            optimize=True,  # Optimize for production
-            half=False,  # Use FP32 for better compatibility
-            dynamic=False,  # Fixed input size for web
-            simplify=True,  # Simplify the model
-            opset=11  # ONNX opset version (compatible with onnxruntime-web)
+            optimize=False,  # Disable all optimizations
+            half=False,  # Use FP32 for maximum compatibility
+            dynamic=False,  # Fixed input size
+            simplify=False,  # No graph simplification
+            opset=11,  # Use older opset for better compatibility
+            verbose=True,  # Verbose output
+            batch=1  # Ensure batch size is 1
         )
         
         # Move the exported file to our public directory

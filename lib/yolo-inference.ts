@@ -29,19 +29,96 @@ class YOLOInference {
     try {
       console.log('Loading YOLO model...');
       
-      // Configure ONNX Runtime for web
-      ort.env.wasm.wasmPaths = 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.20.1/dist/';
+      // Only configure ONNX Runtime in browser environment
+      if (typeof window !== 'undefined') {
+        // Try different WASM path configurations
+        try {
+          // First try: Use matching version WASM files
+          ort.env.wasm.wasmPaths = 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.19.2/dist/';
+        } catch (e) {
+          // Fallback: Use relative paths
+          ort.env.wasm.wasmPaths = '/';
+        }
+        
+        // Conservative configuration for compatibility
+        ort.env.wasm.numThreads = 1;
+        ort.env.wasm.simd = false; // Disable SIMD for compatibility
+        ort.env.wasm.proxy = false;
+        ort.env.logLevel = 'verbose'; // More verbose logging for debugging
+      }
       
-      this.session = await ort.InferenceSession.create(this.MODEL_PATH, {
-        executionProviders: ['wasm'],
-        graphOptimizationLevel: 'all'
-      });
+      // Try multiple loading approaches
+      let modelData: ArrayBuffer | string;
+      
+      try {
+        console.log('Fetching model file...');
+        const response = await fetch(this.MODEL_PATH);
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+        
+        modelData = await response.arrayBuffer();
+        console.log(`Model fetched: ${modelData.byteLength} bytes`);
+      } catch (fetchError) {
+        console.error('Failed to fetch model:', fetchError);
+        throw new Error(`Cannot fetch model file: ${fetchError}`);
+      }
+      
+      // Try creating session with minimal configuration
+      console.log('Creating ONNX inference session...');
+      
+      try {
+        // Approach 1: Minimal configuration
+        this.session = await ort.InferenceSession.create(modelData, {
+          executionProviders: ['wasm']
+        });
+      } catch (minimalError) {
+        console.log('Minimal config failed, trying with more options...');
+        
+        try {
+          // Approach 2: More explicit configuration
+          this.session = await ort.InferenceSession.create(modelData, {
+            executionProviders: ['wasm'],
+            graphOptimizationLevel: 'disabled',
+            executionMode: 'sequential'
+          });
+        } catch (explicitError) {
+          console.log('Explicit config failed, trying URL approach...');
+          
+          // Approach 3: Try loading from URL instead of buffer
+          this.session = await ort.InferenceSession.create(this.MODEL_PATH, {
+            executionProviders: ['wasm']
+          });
+        }
+      }
+      
+      if (!this.session) {
+        throw new Error('Failed to create inference session with any method');
+      }
       
       this.modelLoaded = true;
-      console.log('✓ YOLO model loaded successfully');
+      console.log('✓ YOLO model loaded successfully!');
+      console.log('Session info:', {
+        inputNames: this.session.inputNames,
+        outputNames: this.session.outputNames
+      });
+      
     } catch (error) {
-      console.error('Failed to load YOLO model:', error);
-      throw new Error('Failed to load YOLO model');
+      console.error('ONNX Model loading failed:', error);
+      
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.error('Detailed error info:', {
+        message: errorMessage,
+        stack: error instanceof Error ? error.stack : 'No stack',
+        type: error instanceof Error ? error.constructor.name : typeof error,
+        modelPath: this.MODEL_PATH,
+        onnxVersion: '1.19.2',
+        userAgent: typeof window !== 'undefined' ? navigator.userAgent : 'Server'
+      });
+      
+      // Don't throw - let the fallback system handle it
+      this.modelLoaded = false;
+      console.log('Model loading failed - fallback demo mode will be used');
     }
   }
 
@@ -54,14 +131,18 @@ class YOLOInference {
       // Preprocess image
       const inputTensor = await this.preprocessImage(imageUrl);
       
-      // Run inference
-      const feeds = { images: inputTensor };
+      // Run inference with proper input name
+      const inputName = this.session.inputNames[0] || 'images';
+      const feeds = { [inputName]: inputTensor };
       const results = await this.session.run(feeds);
       
-      // Get output tensor
-      const output = results.output0;
+      // Get output tensor - try different common output names
+      const outputName = this.session.outputNames[0];
+      const output = results[outputName] || results.output0 || results.output;
+      
       if (!output) {
-        throw new Error('No output from model');
+        console.error('Available outputs:', Object.keys(results));
+        throw new Error(`No output found. Available outputs: ${Object.keys(results).join(', ')}`);
       }
       
       // Post-process results
