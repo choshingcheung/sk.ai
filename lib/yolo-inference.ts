@@ -23,28 +23,30 @@ class YOLOInference {
     4: 'L5'
   };
 
-  async loadModel(): Promise<void> {
-    if (this.modelLoaded) return;
+  async loadModel(): Promise<boolean> {
+    if (this.modelLoaded) return true;
 
     try {
       console.log('Loading YOLO model...');
       
       // Only configure ONNX Runtime in browser environment
       if (typeof window !== 'undefined') {
-        // Try different WASM path configurations
-        try {
-          // First try: Use matching version WASM files
-          ort.env.wasm.wasmPaths = 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.19.2/dist/';
-        } catch (e) {
-          // Fallback: Use relative paths
-          ort.env.wasm.wasmPaths = '/';
-        }
-        
-        // Conservative configuration for compatibility
+        // Configure WASM paths to match installed version
+        ort.env.wasm.wasmPaths = 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.19.2/dist/';
+
+        // Conservative configuration for maximum compatibility
         ort.env.wasm.numThreads = 1;
-        ort.env.wasm.simd = false; // Disable SIMD for compatibility
         ort.env.wasm.proxy = false;
-        ort.env.logLevel = 'verbose'; // More verbose logging for debugging
+
+        // Set logging based on environment
+        ort.env.logLevel = process.env.NODE_ENV === 'development' ? 'verbose' : 'warning';
+
+        console.log('ONNX Runtime configuration:', {
+          version: '1.19.2',
+          wasmPaths: ort.env.wasm.wasmPaths,
+          numThreads: ort.env.wasm.numThreads,
+          logLevel: ort.env.logLevel
+        });
       }
       
       // Try multiple loading approaches
@@ -72,9 +74,9 @@ class YOLOInference {
         this.session = await ort.InferenceSession.create(modelData, {
           executionProviders: ['wasm']
         });
-      } catch (minimalError) {
+      } catch {
         console.log('Minimal config failed, trying with more options...');
-        
+
         try {
           // Approach 2: More explicit configuration
           this.session = await ort.InferenceSession.create(modelData, {
@@ -82,9 +84,9 @@ class YOLOInference {
             graphOptimizationLevel: 'disabled',
             executionMode: 'sequential'
           });
-        } catch (explicitError) {
+        } catch {
           console.log('Explicit config failed, trying URL approach...');
-          
+
           // Approach 3: Try loading from URL instead of buffer
           this.session = await ort.InferenceSession.create(this.MODEL_PATH, {
             executionProviders: ['wasm']
@@ -102,23 +104,36 @@ class YOLOInference {
         inputNames: this.session.inputNames,
         outputNames: this.session.outputNames
       });
-      
+
+      return true;
+
     } catch (error) {
-      console.error('ONNX Model loading failed:', error);
-      
+      console.error('❌ ONNX Model loading failed:', error);
+
       const errorMessage = error instanceof Error ? error.message : String(error);
-      console.error('Detailed error info:', {
+      const errorDetails = {
         message: errorMessage,
         stack: error instanceof Error ? error.stack : 'No stack',
         type: error instanceof Error ? error.constructor.name : typeof error,
         modelPath: this.MODEL_PATH,
+        modelSize: '11MB (expected)',
         onnxVersion: '1.19.2',
-        userAgent: typeof window !== 'undefined' ? navigator.userAgent : 'Server'
-      });
-      
+        browser: typeof window !== 'undefined' ? navigator.userAgent : 'Server',
+        webAssemblySupported: typeof WebAssembly !== 'undefined',
+        wasmPath: typeof window !== 'undefined' ? ort.env.wasm.wasmPaths : 'N/A'
+      };
+
+      console.error('Detailed error info:', errorDetails);
+      console.error('Troubleshooting tips:');
+      console.error('1. Check if model file exists at:', this.MODEL_PATH);
+      console.error('2. Check browser console for WASM loading errors');
+      console.error('3. Ensure WebAssembly is enabled in browser');
+      console.error('4. Try clearing cache and hard reload (Ctrl+Shift+R)');
+
       // Don't throw - let the fallback system handle it
       this.modelLoaded = false;
-      console.log('Model loading failed - fallback demo mode will be used');
+      console.log('⚠️ Model loading failed - fallback demo mode will be used');
+      return false;
     }
   }
 
@@ -222,7 +237,7 @@ class YOLOInference {
     
     // YOLOv11 output format: [batch, 4+classes, detections] = [1, 9, 8400]
     // Transposed format: [x_center, y_center, width, height, class0_conf, class1_conf, ...]
-    const [batch, channels, numDetections] = outputShape;
+    const [, channels, numDetections] = outputShape;
     const numClasses = channels - 4; // 9 - 4 = 5 classes
     
     console.log(`Processing ${numDetections} detections with ${numClasses} classes`);

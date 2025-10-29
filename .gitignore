@@ -39,3 +39,7 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Development documentation (not needed in open source repo)
+**/CLAUDE.md
+CLAUDE.md

@@ -19,38 +19,40 @@ except ImportError as e:
     sys.exit(1)
 
 def convert_model():
-    # Path to the trained model
-    model_path = Path(__file__).parent.parent.parent.parent / "yolo_v1/combine/out/runs/detect/l1_l5_combined/weights/best.pt"
-    output_dir = Path(__file__).parent.parent / "public/models"
-    
+    # Path to the trained model (in sk.ai/model directory)
+    model_path = Path(__file__).parent.parent / "model" / "runs" / "detect" / "train" / "weights" / "best.pt"
+    output_dir = Path(__file__).parent.parent / "public" / "models"
+
     print(f"Model path: {model_path}")
     print(f"Output directory: {output_dir}")
-    
+
     # Check if model exists
     if not model_path.exists():
         print(f"✗ Model not found at {model_path}")
+        print(f"✗ Please ensure the model has been trained first")
         sys.exit(1)
-    
+
     # Create output directory
     output_dir.mkdir(parents=True, exist_ok=True)
-    
+
     try:
         # Load the YOLO model
         print("Loading YOLO model...")
         model = YOLO(str(model_path))
-        
-        # Export to ONNX with maximum compatibility
-        print("Exporting model to ONNX format...")
+
+        # Export to ONNX with WEB-COMPATIBLE settings
+        print("Exporting model to ONNX format for web deployment...")
+        print("Settings: opset=12, FP32, fixed shapes, simplified graph")
         onnx_path = model.export(
             format="onnx",
-            imgsz=640,  # Input image size
-            optimize=False,  # Disable all optimizations
-            half=False,  # Use FP32 for maximum compatibility
-            dynamic=False,  # Fixed input size
-            simplify=False,  # No graph simplification
-            opset=11,  # Use older opset for better compatibility
-            verbose=True,  # Verbose output
-            batch=1  # Ensure batch size is 1
+            imgsz=640,          # Input image size
+            opset=12,           # ONNX opset 12 (better browser compatibility)
+            simplify=True,      # Simplify model graph for web
+            dynamic=False,      # Fixed input size (required for web)
+            half=False,         # Use FP32 (required for browser)
+            int8=False,         # No INT8 quantization
+            verbose=True,       # Verbose output
+            batch=1             # Fixed batch size
         )
         
         # Move the exported file to our public directory

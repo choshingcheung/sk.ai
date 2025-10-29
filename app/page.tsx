@@ -17,14 +17,19 @@ export default function Home() {
   useEffect(() => {
     const loadModel = async () => {
       try {
-        await yoloInference.loadModel();
-        setModelLoaded(true);
+        const success = await yoloInference.loadModel();
+        setModelLoaded(success);
+
+        if (!success) {
+          console.log('Model failed to load - demo mode will be used');
+        }
       } catch (err) {
         setError('Failed to load YOLO model. Please refresh the page and try again.');
         console.error('Model loading error:', err);
+        setModelLoaded(false);
       }
     };
-    
+
     loadModel();
   }, []);
 
