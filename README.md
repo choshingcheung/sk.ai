@@ -19,6 +19,13 @@
 
 **SK.AI** is a comprehensive AI-powered medical imaging platform for automated lumbar spine detection. Built with cutting-edge YOLOv11 object detection and deployed entirely client-side using ONNX.js, it provides real-time L1-L5 vertebrae identification while maintaining complete patient privacy.
 
+### 🌐 Live Demo
+
+**Try it now:** [https://skai-spine.vercel.app/](https://skai-spine.vercel.app/)
+
+![SK.AI Web Interface](public/webUI.png)
+*Modern, professional medical-grade interface with real-time spine detection*
+
 ### Why SK.AI?
 
 - 🔒 **Privacy-First**: 100% client-side processing - patient data never leaves the device

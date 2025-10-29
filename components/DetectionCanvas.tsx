@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Loader2 } from 'lucide-react';
 
 interface Detection {
@@ -13,18 +13,18 @@ interface DetectionCanvasProps {
   imageUrl: string;
   detections: Detection[];
   isLoading: boolean;
+  canvasRef: React.RefObject<HTMLCanvasElement | null>;
 }
 
 const COLORS = {
-  L1: '#ff6b6b',
-  L2: '#4ecdc4',
-  L3: '#45b7d1',
-  L4: '#96ceb4',
-  L5: '#feca57',
+  L1: '#ef4444', // red-500
+  L2: '#3b82f6', // blue-500
+  L3: '#10b981', // green-500
+  L4: '#f59e0b', // amber-500
+  L5: '#8b5cf6', // violet-500
 };
 
-export default function DetectionCanvas({ imageUrl, detections, isLoading }: DetectionCanvasProps) {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
+export default function DetectionCanvas({ imageUrl, detections, isLoading, canvasRef }: DetectionCanvasProps) {
   const [imageDimensions, setImageDimensions] = useState({ width: 0, height: 0 });
 
   useEffect(() => {
@@ -52,8 +52,8 @@ export default function DetectionCanvas({ imageUrl, detections, isLoading }: Det
     if (!ctx) return;
 
     // Calculate canvas size to fit the container while maintaining aspect ratio
-    const containerWidth = canvas.parentElement?.clientWidth || 500;
-    const maxHeight = 400;
+    const containerWidth = canvas.parentElement?.clientWidth || 800;
+    const maxHeight = 800; // Much larger for better visibility
     
     const aspectRatio = img.naturalWidth / img.naturalHeight;
     let canvasWidth = containerWidth;
@@ -120,27 +120,35 @@ export default function DetectionCanvas({ imageUrl, detections, isLoading }: Det
 
         console.log(`Canvas Detection ${idx}: bbox=[${x.toFixed(1)}, ${y.toFixed(1)}, ${width.toFixed(1)}, ${height.toFixed(1)}] scaled=[${scaledX.toFixed(1)}, ${scaledY.toFixed(1)}, ${scaledWidth.toFixed(1)}, ${scaledHeight.toFixed(1)}] class=${detection.class} conf=${(detection.confidence*100).toFixed(1)}%`);
 
-        // Draw bounding box
+        // Draw bounding box with thicker, more visible lines
         ctx.strokeStyle = color;
-        ctx.lineWidth = 2;
+        ctx.lineWidth = 4; // Thicker for better visibility
         ctx.strokeRect(scaledX, scaledY, scaledWidth, scaledHeight);
 
-        // Draw filled background for label
+        // Add a semi-transparent fill to highlight the detection area
+        ctx.fillStyle = color + '15'; // 15 is hex for ~10% opacity
+        ctx.fillRect(scaledX, scaledY, scaledWidth, scaledHeight);
+
+        // Draw label background with shadow
         ctx.fillStyle = color;
-        const labelText = `${detection.class} (${(detection.confidence * 100).toFixed(1)}%)`;
-        ctx.font = '12px Inter, system-ui, sans-serif';
+        const labelText = `${detection.class} ${(detection.confidence * 100).toFixed(0)}%`;
+        ctx.font = 'bold 16px Inter, system-ui, sans-serif'; // Larger, bold font
         const textMetrics = ctx.measureText(labelText);
-        const labelWidth = textMetrics.width + 8;
-        const labelHeight = 20;
+        const labelWidth = textMetrics.width + 16;
+        const labelHeight = 28;
 
         // Position label above the box, or inside if at top edge
-        const labelY = scaledY > labelHeight ? scaledY - 2 : scaledY + labelHeight;
-        
-        ctx.fillRect(scaledX, labelY - labelHeight, labelWidth, labelHeight);
+        const labelY = scaledY > labelHeight ? scaledY - 4 : scaledY + labelHeight + 4;
 
-        // Draw label text
+        // Draw label with rounded corners effect
+        ctx.fillRect(scaledX - 2, labelY - labelHeight, labelWidth, labelHeight);
+
+        // Draw label text with shadow for better readability
         ctx.fillStyle = 'white';
-        ctx.fillText(labelText, scaledX + 4, labelY - 6);
+        ctx.shadowColor = 'rgba(0, 0, 0, 0.5)';
+        ctx.shadowBlur = 4;
+        ctx.fillText(labelText, scaledX + 6, labelY - 8);
+        ctx.shadowBlur = 0; // Reset shadow
       });
     };
     img.src = imageUrl;
@@ -149,34 +157,38 @@ export default function DetectionCanvas({ imageUrl, detections, isLoading }: Det
   return (
     <div className="relative">
       {isLoading && (
-        <div className="absolute inset-0 bg-white bg-opacity-75 flex items-center justify-center z-10 rounded-lg">
-          <div className="flex flex-col items-center space-y-2">
-            <Loader2 className="h-8 w-8 text-blue-600 animate-spin" />
-            <p className="text-sm text-gray-600 font-medium">Processing image...</p>
+        <div className="absolute inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-10 rounded-xl">
+          <div className="flex flex-col items-center space-y-3 bg-white/10 p-8 rounded-xl border border-white/20">
+            <Loader2 className="h-12 w-12 text-blue-400 animate-spin" />
+            <p className="text-lg text-white font-semibold">Analyzing spine structure...</p>
+            <p className="text-sm text-blue-200">AI detection in progress</p>
           </div>
         </div>
       )}
-      
-      <div className="bg-gray-50 rounded-lg border overflow-hidden">
+
+      <div className="bg-black/40 rounded-xl border border-white/10 overflow-hidden shadow-2xl">
         <canvas
           ref={canvasRef}
           className="w-full h-auto block"
-          style={{ maxHeight: '400px' }}
+          style={{ maxHeight: '800px' }}
         />
       </div>
 
-      {/* Legend */}
+      {/* Modern Legend */}
       {detections.length > 0 && (
-        <div className="mt-4 p-3 bg-gray-50 rounded-lg">
-          <h4 className="text-sm font-medium text-gray-900 mb-2">Detection Legend</h4>
-          <div className="flex flex-wrap gap-2">
+        <div className="mt-4 p-4 bg-white/5 backdrop-blur-sm rounded-xl border border-white/10">
+          <h4 className="text-sm font-semibold text-white mb-3 flex items-center space-x-2">
+            <div className="w-1 h-4 bg-gradient-to-b from-blue-500 to-cyan-500 rounded-full"></div>
+            <span>Detection Color Legend</span>
+          </h4>
+          <div className="flex flex-wrap gap-3">
             {Object.entries(COLORS).map(([vertebra, color]) => (
-              <div key={vertebra} className="flex items-center space-x-1">
-                <div 
-                  className="w-3 h-3 rounded-sm border" 
-                  style={{ backgroundColor: color }}
+              <div key={vertebra} className="flex items-center space-x-2 px-3 py-1.5 bg-white/5 rounded-lg border border-white/10">
+                <div
+                  className="w-4 h-4 rounded border-2"
+                  style={{ backgroundColor: color, borderColor: color }}
                 />
-                <span className="text-xs text-gray-600">{vertebra}</span>
+                <span className="text-sm font-medium text-white">{vertebra}</span>
               </div>
             ))}
           </div>
